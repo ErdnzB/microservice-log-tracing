@@ -29,6 +29,9 @@ public class Product {
     @Column(nullable = false)
     private BigDecimal price;
 
+    @Column(nullable = false)
+    private String brand;
+
     @CreatedDate
     private LocalDateTime createdDate;
 

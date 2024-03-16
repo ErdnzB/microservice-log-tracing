@@ -21,17 +21,13 @@ public class ProductService {
 
 
     public ProductDto createProduct(CreateProductRequest request) {
-
         Product product = productRepository.save(productMapper.createProductRequestToProduct(request));
-
         log.info("created product");
         return productMapper.productToProductDto(product);
     }
 
-    public List<ProductDto> getProductsByIds(List<Long> productIds){
-
+    public List<ProductDto> getProductsByIds(List<Long> productIds) {
         log.info("get products by id list");
-
         return productMapper.productsToProductDtoList(productRepository.findByIdIn(productIds));
     }
 }
