@@ -10,11 +10,12 @@ I attempted to explain the libraries and some monitoring tools used to trace log
 * Feign Client
 * Apache Kafka
 * Swagger
-* H2 Database
+* Postgresqldb Database
 * Zipkin
 * Grafana
 * Mapstruct
 * Micrometer
+* Redis
 
 ## Architecture Diagram
 
@@ -38,6 +39,10 @@ Navigate to the project directory in the terminal
 
 ```yml
 version: '3.8'
+
+networks:
+  app-tier:
+    driver: bridge
 
 services:
   grafana:
@@ -68,6 +73,29 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
       ALLOW_ANONYMOUS_LOGIN: yes
 
+  postgresqldb:
+    image: postgres
+    ports:
+      - "6534:5432"
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=rigdb
+
+  redis:
+    image: 'bitnami/redis:latest'
+    container_name: 'redis-cache'
+    environment:
+      - REDIS_PASSWORD=redis123
+    labels:
+      kompose.service.type: nodeport
+    ports:
+      - '6379:6379'
+    volumes:
+      - 'redis_data:/bitnami/redis'
+    networks:
+      - app-tier
+
   kafka:
     image: wurstmeister/kafka
     container_name: kafka
@@ -91,6 +119,10 @@ services:
       - "4317:4317"
     depends_on:
       - loki
+
+volumes:
+  redis_data:
+    driver: local
 ```
 
 You can start these tools with the following command:
