@@ -1,7 +1,7 @@
-
 # Microservice micrometer log tracing
 
-I attempted to explain the libraries and some monitoring tools used to trace logs in projects written with a microservices architecture.
+I attempted to explain the libraries and some monitoring tools used to trace logs in projects written with a
+microservices architecture.
 
 ## Technologies Used
 
@@ -39,6 +39,10 @@ Navigate to the project directory in the terminal
 ```yml
 version: '3.8'
 
+networks:
+  app-tier:
+    driver: bridge
+
 services:
   grafana:
     image: grafana/grafana-enterprise:latest
@@ -68,6 +72,29 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
       ALLOW_ANONYMOUS_LOGIN: yes
 
+  postgresqldb:
+    image: postgres
+    ports:
+      - "6534:5432"
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=rigdb
+
+  redis:
+    image: 'bitnami/redis:latest'
+    container_name: 'redis-cache'
+    environment:
+      - REDIS_PASSWORD=redis123
+    labels:
+      kompose.service.type: nodeport
+    ports:
+      - '6379:6379'
+    volumes:
+      - 'redis_data:/bitnami/redis'
+    networks:
+      - app-tier
+
   kafka:
     image: wurstmeister/kafka
     container_name: kafka
@@ -76,6 +103,17 @@ services:
     environment:
       KAFKA_ADVERTISED_HOST_NAME: localhost
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui
+    container_name: kafka-ui
+    ports:
+      - "9090:8080"
+    restart: always
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9093
+      - KAFKA_CLUSTERS_0_ZOOKEEPER=localhost:2181
 
   loki:
     image: grafana/loki:main
@@ -91,6 +129,10 @@ services:
       - "4317:4317"
     depends_on:
       - loki
+
+volumes:
+  redis_data:
+    driver: local
 ```
 
 You can start these tools with the following command:
@@ -101,9 +143,12 @@ You can start these tools with the following command:
 
 ## Added Libraries
 
-* Brave is a library that enables tracing in distributed systems. Especially useful in complex systems like microservices architectures, it tracks requests passing through gateways, allowing you to see how requests interact with each other and how they are responded to.
+* Brave is a library that enables tracing in distributed systems. Especially useful in complex systems like
+  microservices architectures, it tracks requests passing through gateways, allowing you to see how requests interact
+  with each other and how they are responded to.
 
 ```xml
+
 <dependency>
     <groupId>io.micrometer</groupId>
     <artifactId>micrometer-tracing-bridge-brave</artifactId>
@@ -113,23 +158,30 @@ You can start these tools with the following command:
 * This dependency allows for the collection of metrics and monitoring via Micrometer in applications using OpenFeign.
 
 ```xml
+
 <dependency>
     <groupId>io.github.openfeign</groupId>
     <artifactId>feign-micrometer</artifactId>
 </dependency>
 ```
 
-* Zipkin is a tracing system and server that provides tracing and debugging capabilities in distributed systems. The zipkin-reporter-brave dependency provides the necessary reporter functionality to send reports to Zipkin via the Brave library, enabling tracing in your application through Zipkin.
+* Zipkin is a tracing system and server that provides tracing and debugging capabilities in distributed systems. The
+  zipkin-reporter-brave dependency provides the necessary reporter functionality to send reports to Zipkin via the Brave
+  library, enabling tracing in your application through Zipkin.
 
 ```xml
+
 <dependency>
     <groupId>io.zipkin.reporter2</groupId>
     <artifactId>zipkin-reporter-brave</artifactId>
 </dependency>
 ```
-* Developed by Grafana Labs. The loki-logback-appender dependency allows for redirecting log messages from Logback to Loki. This enables storing your application's logs in Loki and visualizing them with Grafana.
+
+* Developed by Grafana Labs. The loki-logback-appender dependency allows for redirecting log messages from Logback to
+  Loki. This enables storing your application's logs in Loki and visualizing them with Grafana.
 
 ```xml
+
 <dependency>
     <groupId>com.github.loki4j</groupId>
     <artifactId>loki-logback-appender</artifactId>
@@ -139,7 +191,8 @@ You can start these tools with the following command:
 
 ## Logback-spring.xml File
 
-* I configured the file as below since I'm tracing logs in Loki datasource in Grafana. This file should be present in every project.
+* I configured the file as below since I'm tracing logs in Loki datasource in Grafana. This file should be present in
+  every project.
 * The label sections correspond to the parts used for searching in Loki.
 
 ```xml
@@ -172,15 +225,19 @@ You can start these tools with the following command:
 
 ## Configuration in application.yml
 
-* The following setting indicates that all tracing data will be collected. That is, each request is traced and stored with a 100% probability.
+* The following setting indicates that all tracing data will be collected. That is, each request is traced and stored
+  with a 100% probability.
+
 ``` yml
 management:
   tracing:
     sampling:
       probability: 1.0
 ```
+
 * This setting provides Zipkin configuration and allows Spring Boot 3 to connect to a remote server.
-* By default `http://localhost:9411/api/v2/spans`, we don't need to specify the endpoint, but we need to for a standalone server.
+* By default `http://localhost:9411/api/v2/spans`, we don't need to specify the endpoint, but we need to for a
+  standalone server.
 
 ``` yml
 management:
@@ -188,6 +245,7 @@ management:
     tracing:
       endpoint: "http://localhost:9411/api/v2/spans"
 ```
+
 * The following config specifies how the traceId and spanId will be reflected in the output.
 
 ``` yml
@@ -196,23 +254,24 @@ logging:
     level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
 ```
 
-* The output in the console looks like this: 
+* The output in the console looks like this:
 
 ![trace_span](Images/trace_span.png)
 
 ## Micrometer for Schedule
 
 * You must use version of spring boot above 3.2.0
-> https://github.com/spring-projects/spring-boot/issues/36119
 
+> https://github.com/spring-projects/spring-boot/issues/36119
 
 ## Micrometer Configuration for Kafka
 
-* For the Producer: 
+* For the Producer:
     * Set `kafkaTemplate.setMicrometerEnabled(true);`
     * Set `kafkaTemplate.setObservationEnabled(true);`
-  
+
 ```java
+
 @RequiredArgsConstructor
 @Configuration
 public class ProducerConfiguration {
@@ -225,7 +284,7 @@ public class ProducerConfiguration {
         configProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProperties.getAddress());
         configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         configProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
-        
+
         return new DefaultKafkaProducerFactory<>(configProps);
     }
 
@@ -248,6 +307,7 @@ public class ProducerConfiguration {
     * Set `factory.getContainerProperties().setCommitLogLevel(LogIfLevelEnabled.Level.INFO);`  // Not required
 
 ```java
+
 @Slf4j
 @RequiredArgsConstructor
 @Configuration
@@ -262,7 +322,7 @@ public class KafkaConsumerConfiguration {
 
         factory.getContainerProperties().setObservationEnabled(true);
         factory.getContainerProperties().setMicrometerEnabled(true);
-        factory.getContainerProperties().setLogContainerConfig(true); 
+        factory.getContainerProperties().setLogContainerConfig(true);
         factory.getContainerProperties().setCommitLogLevel(LogIfLevelEnabled.Level.INFO);
         factory.setConsumerFactory(new DefaultKafkaConsumerFactory<>(consumerConfigs()));
         return factory;
@@ -290,7 +350,9 @@ public class KafkaConsumerConfiguration {
 ```java
 import io.micrometer.context.ContextExecutorService;
 import io.micrometer.context.ContextSnapshot;
+
 import java.util.concurrent.Executor;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Configuration;
@@ -301,24 +363,28 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 @RequiredArgsConstructor
 public class AsyncTraceContextConfig implements AsyncConfigurer {
 
-  // NOTE: By design you can only have one AsyncConfigurer, thus only one executor pool is
-  // configurable.
-  @Qualifier("taskExecutor") // if you have more than one task executor pools
-  private final ThreadPoolTaskExecutor taskExecutor;
+    // NOTE: By design you can only have one AsyncConfigurer, thus only one executor pool is
+    // configurable.
+    @Qualifier("taskExecutor") // if you have more than one task executor pools
+    private final ThreadPoolTaskExecutor taskExecutor;
 
-  @Override
-  public Executor getAsyncExecutor() {
-    return ContextExecutorService.wrap(
-            taskExecutor.getThreadPoolExecutor(),
-                    ContextSnapshotFactory.builder().build()::captureAll);
-  }
+    @Override
+    public Executor getAsyncExecutor() {
+        return ContextExecutorService.wrap(
+                taskExecutor.getThreadPoolExecutor(),
+                ContextSnapshotFactory.builder().build()::captureAll);
+    }
 }
 ```
-* If you have more than one executor pools and wants to add tracing to all, use the TaskDecorator with ContextSnapshot.wrap():
+
+* If you have more than one executor pools and wants to add tracing to all, use the TaskDecorator with
+  ContextSnapshot.wrap():
 
 ```java
 import io.micrometer.context.ContextSnapshot;
+
 import java.util.concurrent.Executor;
+
 import org.springframework.boot.task.TaskExecutorBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -326,35 +392,36 @@ import org.springframework.core.task.TaskDecorator;
 
 @Configuration
 public class AsyncConfig {
-  @Bean
-  public TaskDecorator otelTaskDecorator() {
-    return runnable -> ContextSnapshotFactory.builder().build()
-                                      .captureAll((new Object[0])).wrap(runnable);
-  }
+    @Bean
+    public TaskDecorator otelTaskDecorator() {
+        return runnable -> ContextSnapshotFactory.builder().build()
+                .captureAll((new Object[0])).wrap(runnable);
+    }
 
-  @Bean("asyncExecutorPool1")
-  public Executor asyncExecutorPool1(TaskDecorator otelTaskDecorator) {
-    return new TaskExecutorBuilder()
-        .corePoolSize(5)
-        .maxPoolSize(10)
-        .queueCapacity(10)
-        .threadNamePrefix("threadPoolExecutor1-")
-        .taskDecorator(otelTaskDecorator)
-        .build();
-  }
+    @Bean("asyncExecutorPool1")
+    public Executor asyncExecutorPool1(TaskDecorator otelTaskDecorator) {
+        return new TaskExecutorBuilder()
+                .corePoolSize(5)
+                .maxPoolSize(10)
+                .queueCapacity(10)
+                .threadNamePrefix("threadPoolExecutor1-")
+                .taskDecorator(otelTaskDecorator)
+                .build();
+    }
 
-  @Bean("asyncExecutorPool2")
-  public Executor asyncExecutorPool2(TaskDecorator otelTaskDecorator) {
-    return new TaskExecutorBuilder()
-        .corePoolSize(5)
-        .maxPoolSize(10)
-        .queueCapacity(10)
-        .threadNamePrefix("threadPoolExecutor2-")
-        .taskDecorator(otelTaskDecorator)
-        .build();
-  }
+    @Bean("asyncExecutorPool2")
+    public Executor asyncExecutorPool2(TaskDecorator otelTaskDecorator) {
+        return new TaskExecutorBuilder()
+                .corePoolSize(5)
+                .maxPoolSize(10)
+                .queueCapacity(10)
+                .threadNamePrefix("threadPoolExecutor2-")
+                .taskDecorator(otelTaskDecorator)
+                .build();
+    }
 }
 ```
+
 ## Trying it out on the Application
 
 * First, let's create a customer and a product using Swagger.
@@ -362,8 +429,9 @@ public class AsyncConfig {
 ![create_customer](Images/create_customer.png)
 ![create_product](Images/product_create.png)
 
-* Then, the customer will create an order, and the customer service will communicate with the order service via Kafka to create an order.
-![create_order](Images/create_order.png)
+* Then, the customer will create an order, and the customer service will communicate with the order service via Kafka to
+  create an order.
+  ![create_order](Images/create_order.png)
 
 ### Log Tracing with Grafana
 
@@ -373,20 +441,28 @@ public class AsyncConfig {
 ![loki label](Images/loki_label.png)
 
 * Let's observe the order creation we tried above on Grafana.
-  * First, we'll obtain a traceId from the customer service, and then we'll search on Loki using this traceId to observe all logs associated with this traceId.
+    * First, we'll obtain a traceId from the customer service, and then we'll search on Loki using this traceId to
+      observe all logs associated with this traceId.
 
 ![create_order_log](Images/create_order_log.png)
-  * Let's search with the traceId we obtained, and we'll see all service logs associated with this traceId.
+
+* Let's search with the traceId we obtained, and we'll see all service logs associated with this traceId.
 
 ![create_order_trace_log](Images/grafana_trace_log.png)
 
 ### Log Tracing with Zipkin
+
 * To connect to Zipkin, use the address <http://localhost:9411>
 
 * If we observe the order creation request on Zipkin, we'll see output like this:
 
 ![zipkin_trace_log](Images/zipkin_trace_log.png)
 
+## Kafka-Ui Configuration
+
+* You can observe your kafka events here.
+
+![Kafka-ui.png](Images%2FKafka-ui.png)
 
 ### Happy coding, and may your microservices journey be filled with successful deployments and seamless operations!"
 
