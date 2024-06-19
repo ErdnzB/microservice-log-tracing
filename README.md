@@ -10,11 +10,12 @@ microservices architecture.
 * Feign Client
 * Apache Kafka
 * Swagger
-* H2 Database
+* Postgresqldb Database
 * Zipkin
 * Grafana
 * Mapstruct
 * Micrometer
+* Redis
 
 ## Architecture Diagram
 
