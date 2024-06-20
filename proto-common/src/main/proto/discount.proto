@@ -34,3 +34,5 @@ service DiscountService {
   // unary
   rpc calculateDiscount(DiscountRequest) returns (DiscountResponse) {};
 }
+
+

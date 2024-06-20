@@ -26,7 +26,7 @@ microservices architecture.
 Clone the project
 
 ```bash
-https://github.com/ErayMert/microservice-log-tracing.git
+https://github.com/ErdnzB/microservice-log-tracing
 ```
 
 Navigate to the project directory in the terminal
@@ -35,7 +35,8 @@ Navigate to the project directory in the terminal
   cd microservice-log-tracing
 ```
 
-* The docker-compose.yml file contains configurations for Kafka, Grafana, Zipkin, Zookeeper, Tempo, and Loki.
+* The docker-compose.yml file contains configurations for Kafka,Redis,Postgresqldb,Kafka-Ui, Grafana, Zipkin, Zookeeper,
+  Tempo, and Loki.
 
 ```yml
 version: '3.8'
@@ -432,6 +433,75 @@ public class AsyncConfig {
 }
 ```
 
+## Proto For Discount-Service & Discount Calculator
+
+![proto.png](Images/proto.png)
+
+Proto defined with single request and response model.
+
+Note : Before start services make sure proto-common clean,compile,package and install.(Because we need to implement the
+compiled codes.)
+
+On discount-calulator service is a grpc server. You can see basic calculation method.
+
+```java
+
+@Override
+public void calculateDiscount(DiscountRequest request, StreamObserver<DiscountResponse> responseObserver) {
+    // System.out.println("Request received from client:\n" + request);
+    validationService.validateProductCode(Integer.valueOf(request.getProductId()));
+    BigDecimal price = new BigDecimal(request.getOriginalPrice());
+    BigDecimal discountedPrice = price.divide(BigDecimal.valueOf(10));
+
+    DiscountResponse response = DiscountResponse.newBuilder()
+            .setDiscountedPrice(discountedPrice.toString())
+            .build();
+
+    responseObserver.onNext(response);
+    responseObserver.onCompleted();
+}
+```
+
+And you will see the client implementation inside the customer-service.
+
+```java
+
+@GrpcClient("discount-calculator")
+private DiscountServiceGrpc.DiscountServiceBlockingStub discountBlockingStub;
+
+private BigDecimal getDiscount(Long productId) {
+    DiscountRequest request = DiscountRequest.newBuilder()
+            .setProductId(String.valueOf(productId))
+            .setOriginalPrice("123.12")
+            .build();
+    try {
+        DiscountResponse response = discountBlockingStub.calculateDiscount(request);
+        return new BigDecimal(response.getDiscountedPrice());
+    } catch (StatusRuntimeException e) {
+        Status status = StatusProto.fromThrowable(e);
+        for (Any any : status.getDetailsList()) {
+            if (!any.is(DiscountExceptionResponse.class)) {
+                continue;
+            }
+            try {
+                DiscountExceptionResponse exceptionResponse = any.unpack(DiscountExceptionResponse.class);
+                System.out.println("timestamp: " + exceptionResponse.getTimestamp() +
+                        ", errorCode : " + exceptionResponse.getErrorCode());
+            } catch (InvalidProtocolBufferException ex) {
+                ex.printStackTrace();
+            }
+        }
+        // System.out.println(status.getCode() + " : " + status.getDescription());
+    }
+
+    // return a default value
+    return BigDecimal.ONE;
+}
+
+
+```
+after the request send on grpc server response will return and information log will be on console.
+
 ## Trying it out on the Application
 
 * First, let's create a customer and a product using Swagger.
@@ -472,11 +542,11 @@ public class AsyncConfig {
 
 * You can observe your kafka events here.
 
-![Kafka-ui.png](Images%2FKafka-ui.png)
+![Kafka-ui.png](Images/Kafka-ui.png)
 
 * Example after create order though Kafka Event.
 
-![Kafka-Ui-Order-Produce-Example.png](Images%2FKafka-Ui-Order-Produce-Example.png)
+![Kafka-Ui-Order-Produce-Example.png](Images/Kafka-Ui-Order-Produce-Example.png)
 
 ### Happy coding, and may your microservices journey be filled with successful deployments and seamless operations!"
 
