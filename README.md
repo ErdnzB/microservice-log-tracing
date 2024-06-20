@@ -16,6 +16,8 @@ microservices architecture.
 * Mapstruct
 * Micrometer
 * Redis
+* Kafka - Ui
+* Grpc (Server-Client-Proto def.)
 
 ## Architecture Diagram
 
