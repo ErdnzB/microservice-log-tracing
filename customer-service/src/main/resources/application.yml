@@ -16,6 +16,14 @@ spring:
     maximum-pool-size: 3
     minimum-idle: 3
 
+grpc:
+  client:
+    discount-calculator:
+      address: 'static://127.0.0.1:8012'
+      enableKeepAlive: true
+      keepAliveWithoutCalls: true
+      negotiationType: plaintext
+
 kafka:
   topic:
     order: order
